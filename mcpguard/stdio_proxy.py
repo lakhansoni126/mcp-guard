@@ -31,7 +31,7 @@ def run(name, command):
         os._exit(child.wait())  # server exited: end the proxy so Claude sees the server stop
 
     def decide(msg, info):
-        allow, reason = approval.ask({**info, "server": name, "client": "Claude Desktop (stdio)"})
+        allow, reason = approval.ask({**info, "server": name, "client": os.environ.get("MCPGUARD_CLIENT", "Claude Desktop") + " (stdio)"})
         if allow:
             send(child.stdin, jsonrpc.encode(msg))
         else:
