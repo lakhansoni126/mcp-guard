@@ -3,7 +3,7 @@
 Approve or block every MCP request that Claude Desktop or Claude Web makes, in a popup that appears on top of
 your other windows. Blocked requests never reach the MCP server; Claude receives a clear JSON-RPC error instead.
 
-Pure Python standard library (Tk for the popup). About 300 lines.
+Pure Python standard library (Tk for the popup), no third-party dependencies.
 
 ## How it works
 
@@ -58,6 +58,8 @@ Requires Python 3.10+ with Tk (included in the python.org installers for Windows
 git clone <this repo> && cd mcp-guard
 pip install -e ".[dev]"
 ```
+
+If the `mcpguard` command is not on your PATH, use `python -m mcpguard` instead in every command below.
 
 ## Run
 
