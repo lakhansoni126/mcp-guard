@@ -5,6 +5,9 @@ your other windows. Blocked requests never reach the MCP server; Claude is told 
 
 Pure Python standard library (Tk for the popup), no third-party dependencies.
 
+**Demo video (3:46):** [docs/demo.mp4](docs/demo.mp4), showing requests from Claude being allowed and blocked in
+the popup, Claude's reply in each case, and the traffic in the live monitor.
+
 | Approval popup (appears just above the chat box) | Live monitor (`mcpguard monitor`) |
 |---|---|
 | ![popup](docs/popup.png) | ![monitor](docs/monitor.png) |
