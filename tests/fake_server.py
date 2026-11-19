@@ -41,10 +41,14 @@ class Http(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def log_message(self, *args):  # quiet, and safe under pythonw where there is no stderr
+        pass
+
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--http"]:
-        print(f"fake MCP server on http://127.0.0.1:{sys.argv[2]}/mcp", flush=True)
+        if sys.stdout:  # None under pythonw
+            print(f"fake MCP server on http://127.0.0.1:{sys.argv[2]}/mcp", flush=True)
         ThreadingHTTPServer(("127.0.0.1", int(sys.argv[2])), Http).serve_forever()
     for line in sys.stdin:
         if reply := handle(json.loads(line)):
