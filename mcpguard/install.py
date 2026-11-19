@@ -10,7 +10,10 @@ WRAP = ["-m", "mcpguard", "stdio", "--name"]
 
 def config_path():
     if sys.platform == "win32":
-        return Path(os.environ["APPDATA"]) / "Claude" / "claude_desktop_config.json"
+        path = Path(os.environ["APPDATA"]) / "Claude" / "claude_desktop_config.json"
+        # The Microsoft Store (MSIX) build keeps its AppData inside the package folder
+        store = sorted(Path(os.environ["LOCALAPPDATA"]).glob("Packages/Claude_*/LocalCache/Roaming/Claude/claude_desktop_config.json"))
+        return path if path.exists() or not store else store[0]
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
     return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
