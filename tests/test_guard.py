@@ -43,6 +43,12 @@ def guard(tmp_path, monkeypatch):
     daemon.stop()
 
 
+def blocked(reply):
+    """The guard's message if the reply is a denial (tool calls get an isError result), else None."""
+    result = reply.get("result", {})
+    return result["content"][0]["text"] if result.get("isError") else reply.get("error", {}).get("message")
+
+
 def call(i, tool, text="hi"):
     return {"jsonrpc": "2.0", "id": i, "method": "tools/call", "params": {"name": tool, "arguments": {"text": text}}}
 
@@ -64,14 +70,14 @@ def test_stdio_allows_blocks_and_handles_concurrent_requests(guard):
     replies = run_stdio(guard, [init, call(1, "echo", "slow"), call(2, "delete_file"), call(3, "echo")], 4)
     by_id = {r["id"]: r for r in replies}
     assert "result" in by_id[0] and "echo ran" in by_id[1]["result"]["content"][0]["text"]
-    assert by_id[2]["error"]["code"] == jsonrpc.BLOCKED
+    assert blocked(by_id[2]).startswith("Blocked by MCP Guard") and not blocked(by_id[1])
     assert [r["id"] for r in replies].index(3) < [r["id"] for r in replies].index(1)  # slow one didn't block id 3
 
 
 def test_stdio_fails_closed_without_daemon(guard, tmp_path):
     env = {**guard, "MCPGUARD_PORT": str(free_port())}
     (reply,) = run_stdio(env, [call(1, "echo")], 1)
-    assert "unavailable" in reply["error"]["message"]
+    assert "unavailable" in blocked(reply)
 
 
 def test_http_proxy_gates_posts_and_forwards_the_rest(guard):
@@ -94,7 +100,9 @@ def test_http_proxy_gates_posts_and_forwards_the_rest(guard):
         return json.load(urllib.request.urlopen(req, timeout=10))
 
     assert post(call(1, "echo"))["result"] == {"ok": "/mcp"}
-    assert post(call(2, "delete_file"))["error"]["code"] == jsonrpc.BLOCKED
+    assert "denied" in blocked(post(call(2, "delete_file")))
+    read = {"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": "file:///x"}}
+    assert "denied" in blocked(post(read))  # non-tool requests still get a JSON-RPC error
     assert post({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})["result"]
     up.shutdown(), proxy.shutdown()
 

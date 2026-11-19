@@ -1,7 +1,7 @@
 # MCP Guard
 
 Approve or block every MCP request that Claude Desktop or Claude Web makes, in a popup that appears on top of
-your other windows. Blocked requests never reach the MCP server; Claude receives a clear JSON-RPC error instead.
+your other windows. Blocked requests never reach the MCP server; Claude is told why, and says so in the chat.
 
 Pure Python standard library (Tk for the popup), no third-party dependencies.
 
@@ -30,8 +30,11 @@ calls, pings, notifications, responses) passes through immediately and is writte
 connection keeps working while a request waits.
 
 - **Allow**: the original message is forwarded to the server, and its reply goes back to Claude.
-- **Block, closing the popup, or no answer within 60 s**: the server never sees the request, and Claude gets
-  `{"error": {"code": -32001, "message": "Blocked by MCP Guard: denied by user"}}` for that request id.
+- **Block, closing the popup, or no answer within 60 s**: the server never sees the request. For a tool call,
+  Claude gets a tool result with `isError: true` and the text "Blocked by MCP Guard: denied by user. The request
+  was not sent to the server.", which is how MCP reports tool failures, so the model reads the reason and tells
+  the user (a protocol-level error would only show up as a generic "connector error"). Blocked
+  `resources/read` and `prompts/get` requests, which have no such result, get JSON-RPC error `-32001`.
 - **Several requests at once**: each pending request waits on its own thread (JSON-RPC ids match replies to
   requests), popups stack, and unrelated traffic is never held up.
 - **Remember**: a tick box applies the same decision to that server + tool until the daemon restarts.

@@ -24,9 +24,17 @@ def describe(msg):
 
 
 def denial(msg, reason):
-    """JSON-RPC error returned to the client instead of forwarding a blocked request."""
-    return {"jsonrpc": "2.0", "id": msg["id"],
-            "error": {"code": BLOCKED, "message": f"Blocked by MCP Guard: {reason}"}}
+    """Reply sent instead of forwarding a blocked request.
+
+    A blocked tool call gets a tool result with isError, as the MCP spec asks for tool failures, so the model
+    reads the reason and tells the user (a protocol error only shows up as a generic "connector error").
+    Resources and prompts have no such result shape, so they get a JSON-RPC error.
+    """
+    text = f"Blocked by MCP Guard: {reason}. The request was not sent to the server."
+    if msg.get("method") == "tools/call":
+        return {"jsonrpc": "2.0", "id": msg["id"],
+                "result": {"content": [{"type": "text", "text": text}], "isError": True}}
+    return {"jsonrpc": "2.0", "id": msg["id"], "error": {"code": BLOCKED, "message": text}}
 
 
 def encode(msg):
