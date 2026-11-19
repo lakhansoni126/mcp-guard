@@ -5,7 +5,8 @@ your other windows. Blocked requests never reach the MCP server; Claude is told 
 
 Pure Python standard library (Tk for the popup), no third-party dependencies.
 
-**Demo video (3:46):** [docs/demo.mp4](docs/demo.mp4), showing requests from Claude being allowed and blocked in
+**Demo video (3:46):** [docs/demo.mp4](https://github.com/lakhansoni126/mcp-guard/raw/main/docs/demo.mp4)
+(opens or downloads the file; GitHub does not preview videos this size), showing requests from Claude being allowed and blocked in
 the popup, Claude's reply in each case, and the traffic in the live monitor.
 
 | Approval popup (appears just above the chat box) | Live monitor (`mcpguard monitor`) |
@@ -139,6 +140,29 @@ In claude.ai: Settings → Connectors → **Add custom connector**, name it `dem
 menu and ask "use demo-web echo with text hello", then "use demo-web delete_file on notes.txt". The popup shows
 `remote: <Anthropic's client> -> demo-web`, and the result or the block message comes back into the chat.
 For a real server, point `--upstream` at it instead of the demo.
+
+#### How Claude Web was tested
+
+The Web path was tested end to end on Windows with a Cloudflare quick tunnel, exactly as above:
+
+```
+claude.ai (Anthropic cloud) --HTTPS--> https://<random>.trycloudflare.com/mcp   (cloudflared quick tunnel)
+   --> 127.0.0.1:8080  mcpguard http --upstream http://127.0.0.1:9100 --name demo-web
+   --> 127.0.0.1:9100  tests/fake_server.py --http 9100
+```
+
+1. `winget install Cloudflare.cloudflared`, then started the demo server, the guard's HTTP proxy and
+   `cloudflared tunnel --url http://127.0.0.1:8080`, which printed the public URL.
+2. Checked the public URL from outside: `initialize` and `tools/list` sent to `https://<random>.trycloudflare.com/mcp`
+   came back from the demo server through the guard, and both appeared in the monitor as
+   `client -> server` / `server -> client`.
+3. Added that URL in claude.ai as a custom connector (`demo-web`, no authentication), enabled it in a chat and
+   asked for `echo` and `delete_file`: each call raised the popup (`remote: <client> -> demo-web`), Allow
+   returned the tool result and Block returned the guard's message to the chat.
+
+Notes from testing: a quick-tunnel URL changes every time `cloudflared` restarts, so the connector URL has to
+be updated; and anything started with `pythonw` has no stdout/stderr, so servers must not write logs there
+(the demo server keeps its request log quiet for this reason).
 
 ## Tests
 
