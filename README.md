@@ -45,7 +45,8 @@ connection keeps working while a request waits.
 |---|---|
 | `mcpguard/jsonrpc.py` | Which messages need approval; denial replies; shared JSON helpers |
 | `mcpguard/approval.py` | The daemon (`POST /decide`), the `ask()` client, remembered rules, audit log |
-| `mcpguard/ui.py` | Tk popups: topmost, one per request, countdown to auto-block |
+| `mcpguard/ui.py` | Tk popups: small, topmost, one per request, countdown to auto-block, Esc / Ctrl+Enter |
+| `mcpguard/monitor.py` | Live window that follows the audit log: every message in both directions and every decision |
 | `mcpguard/stdio_proxy.py` | Claude Desktop local servers |
 | `mcpguard/http_proxy.py` | Remote servers for Claude Web and connectors, with SSE streamed through |
 | `mcpguard/install.py` | Wraps and unwraps servers in the Claude Desktop config (keeps a `.bak`) |
@@ -83,6 +84,14 @@ If the `mcpguard` command is not on your PATH, use `python -m mcpguard` instead 
    In claude.ai, go to Settings → Connectors → Add custom connector, and use the tunnel URL plus the
    server's path (for example `https://<random>.trycloudflare.com/mcp`). Paths, headers and OAuth discovery
    are forwarded unchanged.
+
+4. **Watch the traffic (optional).**
+   ```bash
+   mcpguard monitor           # or: pythonw -m mcpguard monitor
+   ```
+   A live table of every JSON-RPC message (Claude to server, server to Claude, and denials sent by the guard)
+   and every decision, coloured by outcome. Click a row to see the full message. It only reads
+   `audit.jsonl`, so it can be opened or closed at any time.
 
 ### Settings (environment variables)
 
@@ -123,7 +132,8 @@ remembered rules, and an install/uninstall round trip.
 - **Clean shutdown.** If Claude closes the connection, the proxy stops the server; if the server exits, the
   proxy exits so Claude sees it. Upstream HTTP errors (such as a 401 for OAuth) pass through unchanged, and an
   unreachable upstream returns 502.
-- **Audit trail.** Every message method and every decision is appended to `~/.mcpguard/audit.jsonl`.
+- **Audit trail.** Every message in both directions (kind, id, method, and a copy capped at 4,000 characters) and every
+  decision is appended to `~/.mcpguard/audit.jsonl`. The log stays on this machine.
 - **Readable popups.** Arguments are shown in full, pretty-printed, and cut off at 5,000 characters.
 
 ## Limitations and trade-offs

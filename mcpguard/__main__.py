@@ -1,4 +1,4 @@
-"""Command line: mcpguard daemon | stdio | http | install | uninstall."""
+"""Command line: mcpguard daemon | monitor | stdio | http | install | uninstall."""
 import argparse
 import signal
 
@@ -9,6 +9,7 @@ def main():
     parser = argparse.ArgumentParser(prog="mcpguard", description="Approve or block each MCP request from Claude.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daemon", help="run the approval service and popups (start this first)")
+    sub.add_parser("monitor", help="live window of every MCP message and decision")
     stdio = sub.add_parser("stdio", help="wrap a local MCP server (used by Claude Desktop's config)")
     stdio.add_argument("--name", required=True)
     stdio.add_argument("command", nargs=argparse.REMAINDER, help="-- <server command> [args...]")
@@ -30,6 +31,9 @@ def main():
             ui.run()
         finally:
             daemon.stop()
+    elif args.cmd == "monitor":
+        from .monitor import Monitor  # Tk, like the daemon
+        Monitor().run()
     elif args.cmd == "stdio":
         from .stdio_proxy import run
         run(args.name, args.command[1:] if args.command[:1] == ["--"] else args.command)

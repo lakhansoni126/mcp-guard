@@ -28,6 +28,8 @@ def run(name, command):
     def server_to_client():
         for line in child.stdout:
             send(sys.stdout.buffer, line)
+            for msg in jsonrpc.parse(line) or []:
+                approval.log_message(name, "server -> client", msg)
         os._exit(child.wait())  # server exited: end the proxy so Claude sees the server stop
 
     def decide(msg, info):
@@ -35,7 +37,9 @@ def run(name, command):
         if allow:
             send(child.stdin, jsonrpc.encode(msg))
         else:
-            send(sys.stdout.buffer, jsonrpc.encode(jsonrpc.denial(msg, reason)))
+            reply = jsonrpc.denial(msg, reason)
+            send(sys.stdout.buffer, jsonrpc.encode(reply))
+            approval.log_message(name, "guard -> client", reply)
 
     threading.Thread(target=server_to_client, daemon=True).start()
     for line in sys.stdin.buffer:
@@ -45,7 +49,7 @@ def run(name, command):
             continue
         for msg in msgs:
             info = jsonrpc.describe(msg)
-            approval.audit({"event": "message", "server": name, "method": msg.get("method") if isinstance(msg, dict) else None})
+            approval.log_message(name, "client -> server", msg)
             if info:
                 threading.Thread(target=decide, args=(msg, info), daemon=True).start()
             else:

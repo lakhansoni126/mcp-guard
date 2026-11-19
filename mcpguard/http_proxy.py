@@ -25,11 +25,13 @@ def make_server(upstream, name, port, host="127.0.0.1"):
             client = f"remote: {self.headers.get('User-Agent', 'unknown client')}"
             denied = []
             for msg in msgs:
-                approval.audit({"event": "message", "server": name, "method": msg.get("method") if isinstance(msg, dict) else None})
+                approval.log_message(name, "client -> server", msg)
                 info = jsonrpc.describe(msg)
                 if info:
                     allow, reason = approval.ask({**info, "server": name, "client": client})
                     denied += [] if allow else [jsonrpc.denial(msg, reason)]
+            for reply in denied:
+                approval.log_message(name, "guard -> client", reply)
             if denied:  # batches were dropped from the spec; a denied call answers the whole POST
                 return jsonrpc.send_json(self, denied[0] if len(denied) == 1 else denied)
             self._forward(body)
@@ -55,11 +57,17 @@ def make_server(upstream, name, port, host="127.0.0.1"):
                         self.send_header(k, v)
                 self.send_header("Transfer-Encoding", "chunked")
                 self.end_headers()
-                read = getattr(resp, "read1", resp.read)
+                read, seen = getattr(resp, "read1", resp.read), b""
                 while chunk := read(65536):  # read1 returns as soon as data arrives, keeping SSE live
                     self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
                     self.wfile.flush()
+                    seen += chunk[:262144 - len(seen)] if body else b""  # replies to a POST, for the log
                 self.wfile.write(b"0\r\n\r\n")
+            # a reply is plain JSON or an SSE stream of "data: {...}" lines
+            for msg in jsonrpc.parse(seen) or [m for line in seen.splitlines() if line.startswith(b"data:")
+                                                for m in jsonrpc.parse(line[5:]) or []]:
+                if isinstance(msg, dict) and "jsonrpc" in msg:  # skip OAuth and other plain JSON replies
+                    approval.log_message(name, "server -> client", msg)
 
         def log_message(self, *args):
             pass

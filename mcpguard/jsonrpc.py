@@ -37,6 +37,18 @@ def denial(msg, reason):
     return {"jsonrpc": "2.0", "id": msg["id"], "error": {"code": BLOCKED, "message": text}}
 
 
+def summary(msg):
+    """Audit-log view of one message: its kind, id, method and gated target, plus a capped copy of it."""
+    if not isinstance(msg, dict):
+        return {"kind": "invalid"}
+    result = msg.get("result")
+    kind = ("error" if "error" in msg or (isinstance(result, dict) and result.get("isError")) else
+            "result" if "result" in msg else "request" if "id" in msg else "notification")
+    out = {"kind": kind, "id": msg.get("id"), "method": msg.get("method"),
+           "target": (describe(msg) or {}).get("target"), "body": json.dumps(msg, ensure_ascii=False)[:4000]}
+    return {k: v for k, v in out.items() if v is not None}
+
+
 def encode(msg):
     """One newline-delimited message, as the stdio transport expects."""
     return (json.dumps(msg) + "\n").encode()

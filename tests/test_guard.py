@@ -72,6 +72,9 @@ def test_stdio_allows_blocks_and_handles_concurrent_requests(guard):
     assert "result" in by_id[0] and "echo ran" in by_id[1]["result"]["content"][0]["text"]
     assert blocked(by_id[2]).startswith("Blocked by MCP Guard") and not blocked(by_id[1])
     assert [r["id"] for r in replies].index(3) < [r["id"] for r in replies].index(1)  # slow one didn't block id 3
+    log = [json.loads(line) for line in Path(guard["MCPGUARD_HOME"], "audit.jsonl").read_text().splitlines()]
+    flows = {(e.get("flow"), e.get("kind"), e.get("id")) for e in log if e["event"] == "message"}
+    assert {("client -> server", "request", 2), ("guard -> client", "error", 2), ("server -> client", "result", 1)} <= flows
 
 
 def test_stdio_fails_closed_without_daemon(guard, tmp_path):

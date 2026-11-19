@@ -12,7 +12,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .jsonrpc import send_json
+from .jsonrpc import send_json, summary
 
 HOME = Path(os.environ.get("MCPGUARD_HOME", Path.home() / ".mcpguard"))
 PORT = int(os.environ.get("MCPGUARD_PORT", "8765"))
@@ -26,6 +26,11 @@ def audit(event):
     HOME.mkdir(parents=True, exist_ok=True)
     with _audit_lock, open(AUDIT_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "pid": os.getpid(), **event}) + "\n")
+
+
+def log_message(server, flow, msg):
+    """Audit one JSON-RPC message passing through a proxy; `flow` says which way it went."""
+    audit({"event": "message", "server": server, "flow": flow, **summary(msg)})
 
 
 def ask(request):
