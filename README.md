@@ -5,6 +5,10 @@ your other windows. Blocked requests never reach the MCP server; Claude is told 
 
 Pure Python standard library (Tk for the popup), no third-party dependencies.
 
+| Approval popup (appears just above the chat box) | Live monitor (`mcpguard monitor`) |
+|---|---|
+| ![popup](docs/popup.png) | ![monitor](docs/monitor.png) |
+
 ## How it works
 
 ```mermaid
@@ -71,6 +75,8 @@ If the `mcpguard` command is not on your PATH, use `python -m mcpguard` instead 
    ```bash
    mcpguard daemon            # or: pythonw -m mcpguard daemon
    ```
+   You can also skip this: when a proxy finds no daemon it starts one in the background
+   (`MCPGUARD_AUTOSTART=0` turns that off).
 2. **Claude Desktop (local servers).** Quit Claude Desktop, then run:
    ```bash
    mcpguard install           # mcpguard uninstall restores the original config
@@ -113,6 +119,24 @@ Add it to `claude_desktop_config.json`, then run `mcpguard install`:
 Ask Claude to "echo hello with the demo tool". Click **Allow** and the result comes back. Ask again and click
 **Block**, and Claude reports that MCP Guard blocked the call.
 
+### Trying it with Claude Web (claude.ai)
+
+claude.ai calls connectors from Anthropic's cloud, so the guarded server needs a public HTTPS URL. A free
+Cloudflare quick tunnel is enough (no account needed: `winget install Cloudflare.cloudflared` on Windows,
+`brew install cloudflared` on macOS).
+
+```bash
+python tests/fake_server.py --http 9100                        # 1. a demo MCP server over Streamable HTTP
+mcpguard http --upstream http://127.0.0.1:9100 --name demo-web --port 8080   # 2. the guard in front of it
+cloudflared tunnel --url http://127.0.0.1:8080                 # 3. prints https://<random>.trycloudflare.com
+```
+
+In claude.ai: Settings → Connectors → **Add custom connector**, name it `demo-web`, URL
+`https://<random>.trycloudflare.com/mcp`, no authentication. In a chat, enable the connector from the tools
+menu and ask "use demo-web echo with text hello", then "use demo-web delete_file on notes.txt". The popup shows
+`remote: <Anthropic's client> -> demo-web`, and the result or the block message comes back into the chat.
+For a real server, point `--upstream` at it instead of the demo.
+
 ## Tests
 
 ```bash
@@ -120,13 +144,16 @@ pytest -q
 ```
 
 The tests run the real daemon, the real proxies as subprocesses, and the fake server. They cover allow, block,
-concurrency (a slow approval does not hold up a later request), the daemon being down, the HTTP proxy,
-remembered rules, and an install/uninstall round trip.
+concurrency (a slow approval does not hold up a later request), a request cancelled while its popup is open,
+the daemon being down, the HTTP proxy, remembered rules, logging in both directions, and an install/uninstall
+round trip. GitHub Actions runs them on Linux, macOS and Windows for every push.
 
 ## Security and reliability
 
-- **Fail closed.** If the daemon is down, the token is wrong, or nobody answers in time, the request is denied
-  and never forwarded.
+- **Fail closed.** If the daemon is down (and cannot be started), the token is wrong, or nobody answers in time,
+  the request is denied and never forwarded.
+- **Cancellation.** If Claude cancels a request (`notifications/cancelled`) while its popup is open, the
+  decision is dropped: the request is neither run nor answered, as the spec requires.
 - **Local only.** The daemon listens on 127.0.0.1. Callers must send a random token that is regenerated at
   each start and stored in a file only the user can read; the comparison is constant-time.
 - **Clean shutdown.** If Claude closes the connection, the proxy stops the server; if the server exits, the
@@ -134,7 +161,9 @@ remembered rules, and an install/uninstall round trip.
   unreachable upstream returns 502.
 - **Audit trail.** Every message in both directions (kind, id, method, and a copy capped at 4,000 characters) and every
   decision is appended to `~/.mcpguard/audit.jsonl`. The log stays on this machine.
-- **Readable popups.** Arguments are shown in full, pretty-printed, and cut off at 5,000 characters.
+- **Readable popups.** Arguments are shown pretty-printed (cut off at 5,000 characters). Tools whose names
+  suggest they change or send data get a warning line. Esc blocks; Ctrl+Enter allows; plain Enter does
+  nothing, so a stray keypress cannot approve a request.
 
 ## Limitations and trade-offs
 

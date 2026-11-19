@@ -32,8 +32,12 @@ def run(name, command):
                 approval.log_message(name, "server -> client", msg)
         os._exit(child.wait())  # server exited: end the proxy so Claude sees the server stop
 
+    cancelled = set()  # ids Claude gave up on (notifications/cancelled) while their popup was open
+
     def decide(msg, info):
         allow, reason = approval.ask({**info, "server": name, "client": os.environ.get("MCPGUARD_CLIENT", "Claude Desktop") + " (stdio)"})
+        if msg["id"] in cancelled:  # the spec says to drop it: neither run it nor answer it
+            return approval.audit({"event": "dropped", "server": name, "id": msg["id"], "why": "cancelled by client"})
         if allow:
             send(child.stdin, jsonrpc.encode(msg))
         else:
@@ -50,6 +54,8 @@ def run(name, command):
         for msg in msgs:
             info = jsonrpc.describe(msg)
             approval.log_message(name, "client -> server", msg)
+            if isinstance(msg, dict) and msg.get("method") == "notifications/cancelled":
+                cancelled.add((msg.get("params") or {}).get("requestId"))
             if info:
                 threading.Thread(target=decide, args=(msg, info), daemon=True).start()
             else:

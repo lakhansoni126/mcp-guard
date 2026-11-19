@@ -39,7 +39,8 @@ def guard(tmp_path, monkeypatch):
     monkeypatch.setattr(approval, "TOKEN_FILE", tmp_path / "token")
     monkeypatch.setattr(approval, "AUDIT_FILE", tmp_path / "audit.jsonl")
     daemon = approval.Daemon(user, port=port, timeout=5).start()
-    yield {**os.environ, "MCPGUARD_HOME": str(tmp_path), "MCPGUARD_PORT": str(port), "PYTHONPATH": ROOT}
+    yield {**os.environ, "MCPGUARD_HOME": str(tmp_path), "MCPGUARD_PORT": str(port), "PYTHONPATH": ROOT,
+           "MCPGUARD_AUTOSTART": "0"}  # never launch a real daemon (with popups) from the tests
     daemon.stop()
 
 
@@ -81,6 +82,20 @@ def test_stdio_fails_closed_without_daemon(guard, tmp_path):
     env = {**guard, "MCPGUARD_PORT": str(free_port())}
     (reply,) = run_stdio(env, [call(1, "echo")], 1)
     assert "unavailable" in blocked(reply)
+
+
+def test_stdio_drops_a_request_cancelled_while_waiting(guard):
+    proc = subprocess.Popen([sys.executable, "-m", "mcpguard", "stdio", "--name", "fake", "--", sys.executable, FAKE],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=guard, text=True)
+    cancel = {"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 1}}
+    for m in (call(1, "echo", "slow"), cancel, call(2, "echo")):
+        proc.stdin.write(json.dumps(m) + "\n")
+    proc.stdin.flush()
+    assert json.loads(proc.stdout.readline())["id"] == 2
+    time.sleep(1.5)  # the slow approval for id 1 lands now; it must be neither run nor answered
+    proc.stdin.close()
+    assert proc.stdout.read() == ""
+    proc.wait(timeout=10)
 
 
 def test_http_proxy_gates_posts_and_forwards_the_rest(guard):

@@ -21,7 +21,7 @@ class Monitor:
         self.counts = dict(messages=0, asked=0, allowed=0, blocked=0)
         sharp_on_windows()
         self.root = tk.Tk()
-        self.root.title("MCP Guard monitor")
+        self.root.title(f"MCP Guard monitor  -  {path}")
         scale = float(self.root.tk.call("tk", "scaling")) / (96 / 72)  # 1.0 at 100% display scaling
         # fixed 16:9 window, sized for the display scale so it looks the same on every screen
         self.root.geometry(f"{int(1040 * scale)}x{int(585 * scale)}")
@@ -68,7 +68,7 @@ class Monitor:
             self.tree.see(self.tree.get_children()[-1])
         c = self.counts
         self.stats.config(text=f"{c['messages']} messages   |   {c['asked']} needed approval   |   "
-                               f"{c['allowed']} allowed   |   {c['blocked']} blocked        log: {self.path}")
+                               f"{c['allowed']} allowed   |   {c['blocked']} blocked")
         self.root.after(500, self._poll)
 
     def _add(self, e):
