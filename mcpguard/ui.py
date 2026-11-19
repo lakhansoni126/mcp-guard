@@ -21,6 +21,18 @@ def sharp_on_windows():
         pass  # not Windows, or an old one
 
 
+def work_area_bottom(win):
+    """Bottom edge of the usable screen (above the taskbar on Windows), in pixels."""
+    try:
+        import ctypes
+        import ctypes.wintypes
+        rect = ctypes.wintypes.RECT()
+        ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(rect), 0)  # SPI_GETWORKAREA
+        return rect.bottom
+    except (ImportError, AttributeError, OSError):
+        return win.winfo_screenheight() - 48
+
+
 class PopupUI:
     def __init__(self, timeout):
         sharp_on_windows()
@@ -87,8 +99,13 @@ class PopupUI:
             countdown.config(text=f"Blocks in {left}s  ·  Esc block  ·  Ctrl+Enter allow")
             win.after(1000, tick, left - 1)
 
-        win.update_idletasks()  # top-right corner, out of the way; placed after layout so its real width is known
-        win.geometry(f"+{win.winfo_screenwidth() - win.winfo_reqwidth() - 24 - offset}+{60 + offset}")
+        # just above where Claude's chat box sits: bottom of the screen, a little right of centre, so it is
+        # next to what you were typing. Placed after layout so the real size is known; extra popups stack upwards.
+        win.update_idletasks()
+        scale = float(win.tk.call("tk", "scaling")) / (96 / 72)
+        x = int(win.winfo_screenwidth() * 0.56 - win.winfo_reqwidth() / 2)
+        y = int(work_area_bottom(win) - win.winfo_reqheight() - 150 * scale - 5 * offset)
+        win.geometry(f"+{x + offset}+{max(y, 0)}")
         win.after(50, tick, self.timeout)  # after layout, so the timer bar knows its width
         win.lift()
         win.focus_force()
