@@ -22,27 +22,29 @@ class Monitor:
         sharp_on_windows()
         self.root = tk.Tk()
         self.root.title("MCP Guard monitor")
-        self.root.geometry("1100x650")
+        scale = float(self.root.tk.call("tk", "scaling")) / (96 / 72)  # 1.0 at 100% display scaling
+        # fixed 16:9 window, sized for the display scale so it looks the same on every screen
+        self.root.geometry(f"{int(1040 * scale)}x{int(585 * scale)}")
+        self.root.resizable(False, False)
         self.root.configure(bg=BG)
-        ttk.Style().configure("Treeview", rowheight=24, font=(FONT, 9))
+        ttk.Style().configure("Treeview", rowheight=int(22 * scale), font=(FONT, 9))
         self.stats = tk.Label(self.root, anchor="w", bg=BG, fg=ACCENT, font=(SERIF, 12))
         self.stats.pack(fill="x", padx=10, pady=6)
-        panes = ttk.PanedWindow(self.root, orient="vertical")
-        panes.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        table = ttk.Frame(panes)
+        self.detail = tk.Text(self.root, height=8, font=("Consolas", 9), wrap="word", bg="#f0eee6", fg=TEXT,
+                              relief="flat")
+        self.detail.pack(side="bottom", fill="x", padx=10, pady=(6, 10))  # fixed height: the table gets the rest
+        table = tk.Frame(self.root, bg=BG)
+        table.pack(fill="both", expand=True, padx=10)
         self.tree = ttk.Treeview(table, columns=list(COLUMNS), show="headings")
         for col, width in COLUMNS.items():
             self.tree.heading(col, text=col.capitalize())
-            self.tree.column(col, width=width, stretch=col == "what")
+            self.tree.column(col, width=int(width * scale), stretch=col == "what")
         for tag, color in COLORS.items():
             self.tree.tag_configure(tag, background=color)
         bar = ttk.Scrollbar(table, command=self.tree.yview)
         self.tree.configure(yscrollcommand=bar.set)
         self.tree.pack(side="left", fill="both", expand=True)
         bar.pack(side="right", fill="y")
-        self.detail = tk.Text(panes, height=10, font=("Consolas", 9), wrap="word", bg="#f0eee6", fg=TEXT, relief="flat")
-        panes.add(table, weight=3)
-        panes.add(self.detail, weight=1)
         self.tree.bind("<<TreeviewSelect>>", self._select)
         self.root.after(0, self._poll)
 
